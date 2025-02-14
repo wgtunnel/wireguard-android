@@ -37,35 +37,8 @@ dependencies {
 
 ## Publishing
 
-1. Update tunnel's build.gradle.kts to the publishing repository with credentials.
-2. Install gpg
-```
-brew install gpg
-git config --global gpg.program $(which gpg)
-```
-3. Create gpg key
-```
-gpg --full-generate-key2
-```
-4. Add key information to ~/.gradle/gradle.properties
-```
-signing.gnupg.keyName=name
-signing.gnupg.passphrase=********
-signing.gnupg.executable=gpg
-signing.secretKeyRingFile=/path/to/.gnupg/secring.gpg
-```
-5. Add username and token for repository to local.properties
-```
-GITHUB_USER=zaneschepke
-GITHUB_TOKEN=***
-```
-6. Send key to public key server
-```
-gpg --send-key <keyId>
-```
-7. Run publish
-```
-./gradlew publish
+```sh
+ ./gradlew publishAllPublicationsToCentralPortal
 ```
 
 ## Translating
