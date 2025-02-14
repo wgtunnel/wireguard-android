@@ -14,13 +14,14 @@ import com.wireguard.android.backend.Tunnel.State;
 import com.wireguard.android.util.RootShell;
 import com.wireguard.android.util.ToolsInstaller;
 import com.wireguard.config.Config;
+import com.wireguard.config.InetEndpoint;
+import com.wireguard.config.Peer;
 import com.wireguard.crypto.Key;
 import com.wireguard.util.NonNullForAll;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -42,12 +43,14 @@ import androidx.annotation.Nullable;
 @NonNullForAll
 public final class WgQuickBackend implements Backend {
     private static final String TAG = "WireGuard/WgQuickBackend";
+    private static final int DNS_RESOLUTION_RETRIES = 3;
     private final File localTemporaryDir;
     private final RootShell rootShell;
     private final Map<Tunnel, Config> runningConfigs = new HashMap<>();
     private final ToolsInstaller toolsInstaller;
     private boolean multipleTunnels;
     private final TunnelActionHandler tunnelActionHandler;
+
 
     public WgQuickBackend(final Context context, final RootShell rootShell, final ToolsInstaller toolsInstaller, final TunnelActionHandler tunnelActionHandler) {
         localTemporaryDir = new File(context.getCacheDir(), "tmp");
@@ -120,9 +123,6 @@ public final class WgQuickBackend implements Backend {
         final State originalState = getState(tunnel);
         final Config originalConfig = runningConfigs.get(tunnel);
         final Map<Tunnel, Config> runningConfigsSnapshot = new HashMap<>(runningConfigs);
-
-        if (state == State.TOGGLE)
-            state = originalState == State.UP ? State.DOWN : State.UP;
         if ((state == State.UP && originalState == State.UP && originalConfig != null && originalConfig == config) ||
                 (state == State.DOWN && originalState == State.DOWN))
             return originalState;
@@ -174,9 +174,28 @@ public final class WgQuickBackend implements Backend {
 
         Objects.requireNonNull(config, "Trying to set state up with a null config");
 
+        dnsRetry: for (int i = 0; i < DNS_RESOLUTION_RETRIES; ++i) {
+            // Pre-resolve IPs so they're cached when building the userspace string
+            for (final Peer peer : config.getPeers()) {
+                final InetEndpoint ep = peer.getEndpoint().orElse(null);
+                if (ep == null)
+                    continue;
+                if (ep.getResolved(tunnel.isIpv4ResolutionPreferred()).orElse(null) == null) {
+                    if (i < DNS_RESOLUTION_RETRIES - 1) {
+                        Log.w(TAG, "DNS host \"" + ep.getHost() + "\" failed to resolve; trying again");
+                        Thread.sleep(1000);
+                        continue dnsRetry;
+                    } else
+                        throw new BackendException(Reason.DNS_RESOLUTION_FAILURE, ep.getHost());
+                }
+            }
+            break;
+        }
+
         final File tempFile = new File(localTemporaryDir, tunnel.getName() + ".conf");
         try (final FileOutputStream stream = new FileOutputStream(tempFile, false)) {
-            stream.write(config.toWgQuickString(false).getBytes(StandardCharsets.UTF_8));
+            final String conf = config.toResolvedWgQuickString(false, tunnel.isIpv4ResolutionPreferred());
+            stream.write(conf.getBytes(StandardCharsets.UTF_8));
         }
         String command = String.format("wg-quick %s '%s'",
                 state.toString().toLowerCase(Locale.ENGLISH), tempFile.getAbsolutePath());

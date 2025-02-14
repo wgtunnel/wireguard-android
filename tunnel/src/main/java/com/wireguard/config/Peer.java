@@ -85,9 +85,8 @@ public final class Peer {
 
     @Override
     public boolean equals(final Object obj) {
-        if (!(obj instanceof Peer))
+        if (!(obj instanceof final Peer other))
             return false;
-        final Peer other = (Peer) obj;
         return allowedIps.equals(other.allowedIps)
                 && endpoint.equals(other.endpoint)
                 && persistentKeepalive.equals(other.persistentKeepalive)
@@ -184,19 +183,30 @@ public final class Peer {
         return sb.toString();
     }
 
+    public String toWgQuickString(final Boolean preferIpv4) {
+        final StringBuilder sb = new StringBuilder();
+        if (!allowedIps.isEmpty())
+            sb.append("AllowedIPs = ").append(Attribute.join(allowedIps)).append('\n');
+        endpoint.flatMap(inetEndpoint -> inetEndpoint.getResolved(preferIpv4)).ifPresent(ep -> sb.append("Endpoint = ").append(ep).append('\n'));
+        persistentKeepalive.ifPresent(pk -> sb.append("PersistentKeepalive = ").append(pk).append('\n'));
+        preSharedKey.ifPresent(psk -> sb.append("PreSharedKey = ").append(psk.toBase64()).append('\n'));
+        sb.append("PublicKey = ").append(publicKey.toBase64()).append('\n');
+        return sb.toString();
+    }
+
     /**
      * Serializes the {@code Peer} for use with the WireGuard cross-platform userspace API. Note
      * that not all attributes are included in this representation.
      *
      * @return the {@code Peer} represented as a series of "key=value" lines
      */
-    public String toWgUserspaceString() {
+    public String toWgUserspaceString(final Boolean preferIpv4) {
         final StringBuilder sb = new StringBuilder();
         // The order here is important: public_key signifies the beginning of a new peer.
         sb.append("public_key=").append(publicKey.toHex()).append('\n');
         for (final InetNetwork allowedIp : allowedIps)
             sb.append("allowed_ip=").append(allowedIp).append('\n');
-        endpoint.flatMap(InetEndpoint::getResolved).ifPresent(ep -> sb.append("endpoint=").append(ep).append('\n'));
+        endpoint.flatMap(inetEndpoint -> inetEndpoint.getResolved(preferIpv4)).ifPresent(ep -> sb.append("endpoint=").append(ep).append('\n'));
         persistentKeepalive.ifPresent(pk -> sb.append("persistent_keepalive_interval=").append(pk).append('\n'));
         preSharedKey.ifPresent(psk -> sb.append("preshared_key=").append(psk.toHex()).append('\n'));
         return sb.toString();

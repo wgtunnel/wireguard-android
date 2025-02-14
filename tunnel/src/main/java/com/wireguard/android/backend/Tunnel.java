@@ -36,12 +36,13 @@ public interface Tunnel {
      */
     void onStateChange(State newState);
 
+    Boolean isIpv4ResolutionPreferred();
+
     /**
      * Enum class to represent all possible states of a {@link Tunnel}.
      */
     enum State {
         DOWN,
-        TOGGLE,
         UP;
 
         /**

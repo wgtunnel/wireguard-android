@@ -168,17 +168,25 @@ public final class Config {
         return sb.toString();
     }
 
+    public String toResolvedWgQuickString(final Boolean includeScripts, final Boolean preferIpv4) {
+        final StringBuilder sb = new StringBuilder();
+        sb.append("[Interface]\n").append(interfaze.toWgQuickString(includeScripts));
+        for (final Peer peer : peers)
+            sb.append("\n[Peer]\n").append(peer.toWgQuickString(preferIpv4));
+        return sb.toString();
+    }
+
     /**
      * Serializes the {@code Config} for use with the WireGuard cross-platform userspace API.
      *
      * @return the {@code Config} represented as a series of "key=value" lines
      */
-    public String toWgUserspaceString() {
+    public String toWgUserspaceString(final Boolean preferIpv4) {
         final StringBuilder sb = new StringBuilder();
         sb.append(interfaze.toWgUserspaceString());
         sb.append("replace_peers=true\n");
         for (final Peer peer : peers)
-            sb.append(peer.toWgUserspaceString());
+            sb.append(peer.toWgUserspaceString(preferIpv4));
         return sb.toString();
     }
 

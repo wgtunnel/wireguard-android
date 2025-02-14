@@ -203,9 +203,6 @@ public final class GoBackend implements Backend {
     @Override
     public State setState(final Tunnel tunnel, State state, @Nullable final Config config) throws Exception {
         final State originalState = getState(tunnel);
-
-        if (state == State.TOGGLE)
-            state = originalState == State.UP ? State.DOWN : State.UP;
         if (state == originalState && tunnel == currentTunnel && config == currentConfig)
             return originalState;
         if (state == State.UP) {
@@ -264,7 +261,7 @@ public final class GoBackend implements Backend {
                     final InetEndpoint ep = peer.getEndpoint().orElse(null);
                     if (ep == null)
                         continue;
-                    if (ep.getResolved().orElse(null) == null) {
+                    if (ep.getResolved(tunnel.isIpv4ResolutionPreferred()).orElse(null) == null) {
                         if (i < DNS_RESOLUTION_RETRIES - 1) {
                             Log.w(TAG, "DNS host \"" + ep.getHost() + "\" failed to resolve; trying again");
                             Thread.sleep(1000);
@@ -277,7 +274,7 @@ public final class GoBackend implements Backend {
             }
 
             // Build config
-            final String goConfig = config.toWgUserspaceString();
+            final String goConfig = config.toWgUserspaceString(tunnel.isIpv4ResolutionPreferred());
 
             // Create the vpn tunnel with android API
             final VpnService.Builder builder = service.getBuilder();
