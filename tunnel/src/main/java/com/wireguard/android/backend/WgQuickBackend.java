@@ -18,6 +18,8 @@ import com.wireguard.config.InetEndpoint;
 import com.wireguard.config.Peer;
 import com.wireguard.crypto.Key;
 import com.wireguard.util.NonNullForAll;
+import com.zaneschepke.droiddns.DnsResolver;
+import com.zaneschepke.droiddns.JavaDnsResolver;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -32,6 +34,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import androidx.annotation.Nullable;
 
@@ -42,6 +45,7 @@ import androidx.annotation.Nullable;
 
 @NonNullForAll
 public final class WgQuickBackend implements Backend {
+    private static final Pattern PATTERN = Pattern.compile("\\t");
     private static final String TAG = "WireGuard/WgQuickBackend";
     private static final int DNS_RESOLUTION_RETRIES = 3;
     private final File localTemporaryDir;
@@ -50,6 +54,7 @@ public final class WgQuickBackend implements Backend {
     private final ToolsInstaller toolsInstaller;
     private boolean multipleTunnels;
     private final TunnelActionHandler tunnelActionHandler;
+    private final DnsResolver dnsResolver;
 
 
     public WgQuickBackend(final Context context, final RootShell rootShell, final ToolsInstaller toolsInstaller, final TunnelActionHandler tunnelActionHandler) {
@@ -57,6 +62,7 @@ public final class WgQuickBackend implements Backend {
         this.rootShell = rootShell;
         this.toolsInstaller = toolsInstaller;
         this.tunnelActionHandler = tunnelActionHandler;
+        dnsResolver = new JavaDnsResolver(context);
     }
 
     public static boolean hasKernelSupport() {
@@ -95,7 +101,7 @@ public final class WgQuickBackend implements Backend {
             return stats;
         }
         for (final String line : output) {
-            final String[] parts = line.split("\\t");
+            final String[] parts = PATTERN.split(line);
             if (parts.length != 8)
                 continue;
             try {
@@ -174,22 +180,12 @@ public final class WgQuickBackend implements Backend {
 
         Objects.requireNonNull(config, "Trying to set state up with a null config");
 
-        dnsRetry: for (int i = 0; i < DNS_RESOLUTION_RETRIES; ++i) {
-            // Pre-resolve IPs so they're cached when building the userspace string
-            for (final Peer peer : config.getPeers()) {
-                final InetEndpoint ep = peer.getEndpoint().orElse(null);
-                if (ep == null)
-                    continue;
-                if (ep.getResolved(tunnel.isIpv4ResolutionPreferred()).orElse(null) == null) {
-                    if (i < DNS_RESOLUTION_RETRIES - 1) {
-                        Log.w(TAG, "DNS host \"" + ep.getHost() + "\" failed to resolve; trying again");
-                        Thread.sleep(1000);
-                        continue dnsRetry;
-                    } else
-                        throw new BackendException(Reason.DNS_RESOLUTION_FAILURE, ep.getHost());
-                }
-            }
-            break;
+        for (final Peer peer : config.getPeers()) {
+            final InetEndpoint ep = peer.getEndpoint().orElse(null);
+            if (ep == null) continue;
+            final List<String> resolved = dnsResolver.resolveDns(ep.getHost(),tunnel.isIpv4ResolutionPreferred(), false);
+            if(resolved.isEmpty()) throw new BackendException(Reason.DNS_RESOLUTION_FAILURE);
+            ep.setResolved(resolved.get(0));
         }
 
         final File tempFile = new File(localTemporaryDir, tunnel.getName() + ".conf");

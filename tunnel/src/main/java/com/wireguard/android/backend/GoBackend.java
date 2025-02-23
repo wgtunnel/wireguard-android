@@ -22,10 +22,13 @@ import com.wireguard.config.Peer;
 import com.wireguard.crypto.Key;
 import com.wireguard.crypto.KeyFormatException;
 import com.wireguard.util.NonNullForAll;
+import com.zaneschepke.droiddns.DnsResolver;
+import com.zaneschepke.droiddns.JavaDnsResolver;
 
 import java.net.InetAddress;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
@@ -51,6 +54,7 @@ public final class GoBackend implements Backend {
     @Nullable private Config currentConfig;
     @Nullable private Tunnel currentTunnel;
     private int currentTunnelHandle = -1;
+    private final DnsResolver dnsResolver;
 
     /**
      * Public constructor for GoBackend.
@@ -61,6 +65,7 @@ public final class GoBackend implements Backend {
         SharedLibraryLoader.loadSharedLibrary(context, "wg-go");
         this.context = context;
         this.tunnelActionHandler = tunnelActionHandler;
+        dnsResolver = new JavaDnsResolver(context);
     }
 
     /**
@@ -254,23 +259,12 @@ public final class GoBackend implements Backend {
                 return;
             }
 
-
-            dnsRetry: for (int i = 0; i < DNS_RESOLUTION_RETRIES; ++i) {
-                // Pre-resolve IPs so they're cached when building the userspace string
-                for (final Peer peer : config.getPeers()) {
-                    final InetEndpoint ep = peer.getEndpoint().orElse(null);
-                    if (ep == null)
-                        continue;
-                    if (ep.getResolved(tunnel.isIpv4ResolutionPreferred()).orElse(null) == null) {
-                        if (i < DNS_RESOLUTION_RETRIES - 1) {
-                            Log.w(TAG, "DNS host \"" + ep.getHost() + "\" failed to resolve; trying again");
-                            Thread.sleep(1000);
-                            continue dnsRetry;
-                        } else
-                            throw new BackendException(Reason.DNS_RESOLUTION_FAILURE, ep.getHost());
-                    }
-                }
-                break;
+            for (final Peer peer : config.getPeers()) {
+                final InetEndpoint ep = peer.getEndpoint().orElse(null);
+                if (ep == null) continue;
+                final List<String> resolved = dnsResolver.resolveDns(ep.getHost(),tunnel.isIpv4ResolutionPreferred(), false);
+                if(resolved.isEmpty()) throw new BackendException(Reason.DNS_RESOLUTION_FAILURE);
+                ep.setResolved(resolved.get(0));
             }
 
             // Build config
