@@ -187,7 +187,7 @@ public final class Peer {
         final StringBuilder sb = new StringBuilder();
         if (!allowedIps.isEmpty())
             sb.append("AllowedIPs = ").append(Attribute.join(allowedIps)).append('\n');
-        endpoint.flatMap(inetEndpoint -> inetEndpoint.getResolved(preferIpv4)).ifPresent(ep -> sb.append("Endpoint = ").append(ep).append('\n'));
+        endpoint.flatMap(InetEndpoint::getResolved).ifPresent(ep -> sb.append("Endpoint = ").append(ep).append('\n'));
         persistentKeepalive.ifPresent(pk -> sb.append("PersistentKeepalive = ").append(pk).append('\n'));
         preSharedKey.ifPresent(psk -> sb.append("PreSharedKey = ").append(psk.toBase64()).append('\n'));
         sb.append("PublicKey = ").append(publicKey.toBase64()).append('\n');
