@@ -142,6 +142,5 @@ nmcp {
 }
 
 signing {
-    useGpgCmd()
     sign(publishing.publications)
 }
