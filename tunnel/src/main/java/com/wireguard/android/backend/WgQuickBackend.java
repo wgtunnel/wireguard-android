@@ -180,12 +180,14 @@ public final class WgQuickBackend implements Backend {
 
         Objects.requireNonNull(config, "Trying to set state up with a null config");
 
-        for (final Peer peer : config.getPeers()) {
-            final InetEndpoint ep = peer.getEndpoint().orElse(null);
-            if (ep == null) continue;
-            final List<String> resolved = dnsResolver.resolveDns(ep.getHost(),tunnel.isIpv4ResolutionPreferred(), false);
-            if(resolved.isEmpty()) throw new BackendException(Reason.DNS_RESOLUTION_FAILURE);
-            ep.setResolved(resolved.get(0));
+        if(state == State.UP) {
+            for (final Peer peer : config.getPeers()) {
+                final InetEndpoint ep = peer.getEndpoint().orElse(null);
+                if (ep == null) continue;
+                final List<String> resolved = dnsResolver.resolveDns(ep.getHost(),tunnel.isIpv4ResolutionPreferred(), false);
+                if(resolved.isEmpty()) throw new BackendException(Reason.DNS_RESOLUTION_FAILURE);
+                ep.setResolved(resolved.get(0));
+            }
         }
 
         final File tempFile = new File(localTemporaryDir, tunnel.getName() + ".conf");
