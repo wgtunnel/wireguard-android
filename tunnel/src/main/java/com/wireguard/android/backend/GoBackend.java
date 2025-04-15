@@ -22,19 +22,14 @@ import com.wireguard.config.Peer;
 import com.wireguard.crypto.Key;
 import com.wireguard.crypto.KeyFormatException;
 import com.wireguard.util.NonNullForAll;
-import com.zaneschepke.droiddns.DnsResolver;
-import com.zaneschepke.droiddns.JavaDnsResolver;
+import com.zaneschepke.droiddns.AndroidDnsResolver;
+import com.zaneschepke.droiddns.CustomDnsResolver;
 
 import java.net.InetAddress;
-import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 
 import androidx.annotation.Nullable;
 import androidx.collection.ArraySet;
@@ -54,7 +49,7 @@ public final class GoBackend implements Backend {
     @Nullable private Config currentConfig;
     @Nullable private Tunnel currentTunnel;
     private int currentTunnelHandle = -1;
-    private final DnsResolver dnsResolver;
+    private final AndroidDnsResolver dnsResolver;
 
     /**
      * Public constructor for GoBackend.
@@ -65,7 +60,7 @@ public final class GoBackend implements Backend {
         SharedLibraryLoader.loadSharedLibrary(context, "wg-go");
         this.context = context;
         this.tunnelActionHandler = tunnelActionHandler;
-        dnsResolver = new JavaDnsResolver(context);
+        dnsResolver = new CustomDnsResolver();
     }
 
     /**
@@ -262,9 +257,10 @@ public final class GoBackend implements Backend {
             for (final Peer peer : config.getPeers()) {
                 final InetEndpoint ep = peer.getEndpoint().orElse(null);
                 if (ep == null) continue;
-                final List<String> resolved = dnsResolver.resolveDns(ep.getHost(),tunnel.isIpv4ResolutionPreferred(), false);
+                final List<InetAddress> resolved = dnsResolver.resolveBlocking(ep.getHost(),tunnel.isIpv4ResolutionPreferred(), tunnel.useCache(), null);
                 if(resolved.isEmpty()) throw new BackendException(Reason.DNS_RESOLUTION_FAILURE);
-                ep.setResolved(resolved.get(0));
+                if(resolved.get(0).getHostAddress() == null) throw new BackendException(Reason.DNS_RESOLUTION_FAILURE);
+                ep.setResolved(resolved.get(0).getHostAddress());
             }
 
             // Build config

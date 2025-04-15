@@ -36,7 +36,19 @@ public interface Tunnel {
      */
     void onStateChange(State newState);
 
+    /**
+     * Prefer IPv4 host resolution.
+     *
+     * @return true if ipv4 is preferred.
+     */
     Boolean isIpv4ResolutionPreferred();
+
+    /**
+     * Use DNS cache.
+     *
+     * @return true if okay to use DNS cache.
+     */
+    Boolean useCache();
 
     /**
      * Enum class to represent all possible states of a {@link Tunnel}.

@@ -18,22 +18,14 @@ import com.wireguard.config.InetEndpoint;
 import com.wireguard.config.Peer;
 import com.wireguard.crypto.Key;
 import com.wireguard.util.NonNullForAll;
-import com.zaneschepke.droiddns.DnsResolver;
-import com.zaneschepke.droiddns.JavaDnsResolver;
+import com.zaneschepke.droiddns.AndroidDnsResolver;
+import com.zaneschepke.droiddns.CustomDnsResolver;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Pattern;
 
 import androidx.annotation.Nullable;
@@ -54,7 +46,7 @@ public final class WgQuickBackend implements Backend {
     private final ToolsInstaller toolsInstaller;
     private boolean multipleTunnels;
     private final TunnelActionHandler tunnelActionHandler;
-    private final DnsResolver dnsResolver;
+    private final AndroidDnsResolver dnsResolver;
 
 
     public WgQuickBackend(final Context context, final RootShell rootShell, final ToolsInstaller toolsInstaller, final TunnelActionHandler tunnelActionHandler) {
@@ -62,7 +54,7 @@ public final class WgQuickBackend implements Backend {
         this.rootShell = rootShell;
         this.toolsInstaller = toolsInstaller;
         this.tunnelActionHandler = tunnelActionHandler;
-        dnsResolver = new JavaDnsResolver(context);
+        dnsResolver = new CustomDnsResolver();
     }
 
     public static boolean hasKernelSupport() {
@@ -184,9 +176,11 @@ public final class WgQuickBackend implements Backend {
             for (final Peer peer : config.getPeers()) {
                 final InetEndpoint ep = peer.getEndpoint().orElse(null);
                 if (ep == null) continue;
-                final List<String> resolved = dnsResolver.resolveDns(ep.getHost(),tunnel.isIpv4ResolutionPreferred(), false);
+                final List<InetAddress> resolved = dnsResolver.resolveBlocking(ep.getHost(),tunnel.isIpv4ResolutionPreferred(), tunnel.useCache(),null);
                 if(resolved.isEmpty()) throw new BackendException(Reason.DNS_RESOLUTION_FAILURE);
-                ep.setResolved(resolved.get(0));
+                if(resolved.get(0).getHostAddress() == null) throw new BackendException(Reason.DNS_RESOLUTION_FAILURE);
+                Log.d(TAG, "Resolved DN: " + resolved.get(0).getHostAddress());
+                ep.setResolved(resolved.get(0).getHostAddress());
             }
         }
 
