@@ -128,11 +128,12 @@ public final class GoBackend implements Backend {
         Key key = null;
         long rx = 0;
         long tx = 0;
+        String endpoint = "";
         long latestHandshakeMSec = 0;
         for (final String line : config.split("\\n")) {
             if (line.startsWith("public_key=")) {
                 if (key != null)
-                    stats.add(key, rx, tx, latestHandshakeMSec);
+                    stats.add(key, endpoint, rx, tx, latestHandshakeMSec);
                 rx = 0;
                 tx = 0;
                 latestHandshakeMSec = 0;
@@ -149,6 +150,14 @@ public final class GoBackend implements Backend {
                 } catch (final NumberFormatException ignored) {
                     rx = 0;
                 }
+            } else if (line.startsWith("endpoint=")) {
+                    if (key == null)
+                        continue;
+                    try {
+                        endpoint = line.substring(9);
+                    } catch (final Exception ignored) {
+                        endpoint = "";
+                    }
             } else if (line.startsWith("tx_bytes=")) {
                 if (key == null)
                     continue;
@@ -176,7 +185,7 @@ public final class GoBackend implements Backend {
             }
         }
         if (key != null)
-            stats.add(key, rx, tx, latestHandshakeMSec);
+            stats.add(key, endpoint, rx, tx, latestHandshakeMSec);
         return stats;
     }
 

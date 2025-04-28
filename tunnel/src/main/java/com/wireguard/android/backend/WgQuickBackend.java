@@ -97,7 +97,7 @@ public final class WgQuickBackend implements Backend {
             if (parts.length != 8)
                 continue;
             try {
-                stats.add(Key.fromBase64(parts[0]), Long.parseLong(parts[5]), Long.parseLong(parts[6]), Long.parseLong(parts[4]) * 1000);
+                stats.add(Key.fromBase64(parts[0]),  parts[2], Long.parseLong(parts[5]), Long.parseLong(parts[6]), Long.parseLong(parts[4]) * 1000);
             } catch (final Exception ignored) {
             }
         }
