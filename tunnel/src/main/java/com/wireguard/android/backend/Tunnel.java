@@ -44,13 +44,6 @@ public interface Tunnel {
     Boolean isIpv4ResolutionPreferred();
 
     /**
-     * Use DNS cache.
-     *
-     * @return true if okay to use DNS cache.
-     */
-    Boolean useCache();
-
-    /**
      * Enum class to represent all possible states of a {@link Tunnel}.
      */
     enum State {

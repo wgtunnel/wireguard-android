@@ -70,9 +70,6 @@ dependencies {
     implementation(libs.androidx.collection)
     compileOnly(libs.jsr305)
     testImplementation(libs.junit)
-
-    //dns
-    implementation(libs.droiddns)
 }
 
 publishing {

@@ -18,12 +18,9 @@ import com.wireguard.config.InetEndpoint;
 import com.wireguard.config.Peer;
 import com.wireguard.crypto.Key;
 import com.wireguard.util.NonNullForAll;
-import com.zaneschepke.droiddns.AndroidDnsResolver;
-import com.zaneschepke.droiddns.CustomDnsResolver;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -46,7 +43,6 @@ public final class WgQuickBackend implements Backend {
     private final ToolsInstaller toolsInstaller;
     private boolean multipleTunnels;
     private final TunnelActionHandler tunnelActionHandler;
-    private final AndroidDnsResolver dnsResolver;
 
 
     public WgQuickBackend(final Context context, final RootShell rootShell, final ToolsInstaller toolsInstaller, final TunnelActionHandler tunnelActionHandler) {
@@ -54,7 +50,6 @@ public final class WgQuickBackend implements Backend {
         this.rootShell = rootShell;
         this.toolsInstaller = toolsInstaller;
         this.tunnelActionHandler = tunnelActionHandler;
-        dnsResolver = new CustomDnsResolver();
     }
 
     public static boolean hasKernelSupport() {
@@ -173,18 +168,30 @@ public final class WgQuickBackend implements Backend {
         Objects.requireNonNull(config, "Trying to set state up with a null config");
 
         if(state == State.UP) {
-            for (final Peer peer : config.getPeers()) {
-                final InetEndpoint ep = peer.getEndpoint().orElse(null);
-                if (ep == null) continue;
-                try {
-                    final List<InetAddress> resolved = dnsResolver.resolveBlocking(ep.getHost(), tunnel.isIpv4ResolutionPreferred(), tunnel.useCache(), null);
-                    if(resolved.isEmpty()) throw new BackendException(Reason.DNS_RESOLUTION_FAILURE);
-                    if(resolved.get(0).getHostAddress() == null) throw new BackendException(Reason.DNS_RESOLUTION_FAILURE);
-                    Log.d(TAG, "Resolved DN: " + resolved.get(0).getHostAddress());
-                    ep.setResolved(resolved.get(0).getHostAddress());
-                } catch (final Exception e) {
-                    Log.e(TAG, "Failed to resolve " + ep.getHost(), e);
-                    throw new BackendException(Reason.DNS_RESOLUTION_FAILURE);
+            List<InetEndpoint> failedEndpoints = new ArrayList<>();
+            for (int i = 0; i < DNS_RESOLUTION_RETRIES; ++i) {
+                failedEndpoints.clear();
+                for (final Peer peer : config.getPeers()) {
+                    Optional<InetEndpoint> epOpt = peer.getEndpoint();
+                    if (epOpt.isEmpty()) continue;
+                    InetEndpoint ep = epOpt.get();
+                    if (ep.getResolved(tunnel.isIpv4ResolutionPreferred()).isEmpty()) {
+                        failedEndpoints.add(ep);
+                    }
+                }
+                if (failedEndpoints.isEmpty()) break;
+                if (i < DNS_RESOLUTION_RETRIES - 1) {
+                    for (InetEndpoint ep : failedEndpoints) {
+                        Log.w(TAG, "DNS host \"" + ep.getHost() + "\" failed (attempt " + (i + 1) + " of " + DNS_RESOLUTION_RETRIES + ')');
+                    }
+                    try {
+                        Thread.sleep(500L * (1 << i));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new BackendException(Reason.DNS_RESOLUTION_FAILURE, "Interrupted during DNS retry");
+                    }
+                } else {
+                    throw new BackendException(Reason.DNS_RESOLUTION_FAILURE, failedEndpoints.get(0).getHost());
                 }
             }
         }

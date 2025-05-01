@@ -187,7 +187,7 @@ public final class Peer {
         final StringBuilder sb = new StringBuilder();
         if (!allowedIps.isEmpty())
             sb.append("AllowedIPs = ").append(Attribute.join(allowedIps)).append('\n');
-        endpoint.flatMap(InetEndpoint::getResolved).ifPresent(ep -> sb.append("Endpoint = ").append(ep).append('\n'));
+        endpoint.flatMap(ep -> ep.getResolved(preferIpv4)).ifPresent(ep -> sb.append("Endpoint = ").append(ep).append('\n'));
         persistentKeepalive.ifPresent(pk -> sb.append("PersistentKeepalive = ").append(pk).append('\n'));
         preSharedKey.ifPresent(psk -> sb.append("PreSharedKey = ").append(psk.toBase64()).append('\n'));
         sb.append("PublicKey = ").append(publicKey.toBase64()).append('\n');
@@ -206,7 +206,7 @@ public final class Peer {
         sb.append("public_key=").append(publicKey.toHex()).append('\n');
         for (final InetNetwork allowedIp : allowedIps)
             sb.append("allowed_ip=").append(allowedIp).append('\n');
-        endpoint.flatMap(InetEndpoint::getResolved).ifPresent(ep -> sb.append("endpoint=").append(ep).append('\n'));
+        endpoint.flatMap(ep -> ep.getResolved(preferIpv4)).ifPresent(ep -> sb.append("endpoint=").append(ep).append('\n'));
         persistentKeepalive.ifPresent(pk -> sb.append("persistent_keepalive_interval=").append(pk).append('\n'));
         preSharedKey.ifPresent(psk -> sb.append("preshared_key=").append(psk.toHex()).append('\n'));
         return sb.toString();
